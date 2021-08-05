@@ -45,7 +45,7 @@ valid.climdexInput <- function(x) {
   temp.quantiles <- c(10, 90)
   prec.quantiles <- c(95, 99)
   errors <- c()
-
+  
   separate.base <- c(tmax=T, tmin=T, tavg=T, prec=F)
   present.data.vars <- names(x@data)
   length.check.slots <- c("dates", "jdays")
@@ -55,11 +55,11 @@ valid.climdexInput <- function(x) {
   
   if(!all(data.lengths == max(data.lengths)))
     errors <- c(errors, "Data fields, dates, and date factors must all be of the same length")
-
+  
   ## Check that namasks have columns for each of the variables
   if(!all(c("annual", "monthly") %in% names(x@namasks)) || !all(present.data.vars %in% names(x@namasks$annual) & present.data.vars %in% names(x@namasks$monthly)))
     errors <- c(errors, "NA mask for monthly and annual must contain data for all variables supplied.")
-
+  
   ## Check that appropriate thresholds are present.
   need.base.data <- get.num.days.in.range(x@dates, x@base.range) > 0
   errors <- do.call(c, c(list(errors), lapply(intersect(present.data.vars, c("tmax", "tmin", "prec")), function(n) {
@@ -70,7 +70,7 @@ valid.climdexInput <- function(x) {
       return(paste("Quantiles for", n, "are missing."))
     return(NULL)
   })))
-
+  
   if(length(x@northern.hemisphere) != 1)
     errors <- c(errors, "northern.hemisphere must be of length 1.")
   
@@ -190,16 +190,16 @@ setClass("climdexInput",
                         northern.hemisphere = "logical",
                         max.missing.days = "numeric"),
          validity=valid.climdexInput
-         )
+)
 
 ## Returns PCICt field or dies
 get.date.field <- function(input.data, cal, date.types) {
   valid.date.types <- sapply(date.types, function(x) { return(!inherits(try(input.data[,x$fields], silent=TRUE), "try-error")) })
-
+  
   if(sum(valid.date.types) == 0) {
     stop("Could not find a workable set of date fields")
   }
-
+  
   date.type <- date.types[[which(valid.date.types)[1]]]
   date.strings <- do.call(paste, input.data[,date.type$fields,drop=FALSE])
   return(as.PCICt(date.strings, format=date.type$format, cal=cal))
@@ -246,16 +246,16 @@ get.bootstrap.set <- function(dates, bootstrap.range, win.size) {
 ## Calculate a running quantile on the data set over the bootstrap range.
 ## If get.bootstrap.data is TRUE, use the Zhang boostrapping method described in Xuebin Zhang et al's 2005 paper, "Avoiding Inhomogeneity in Percentile-Based Indices of Temperature Extremes" J.Clim vol 18 pp.1647-1648, "Removing the 'jump'".
 ## Expects PCICt for all dates
-zhang.running.qtile <- function(x, dates.base, qtiles, bootstrap.range, include.mask=NULL, n=5, get.bootstrap.data=FALSE, min.fraction.present=0.1) {
+zhang.running.qtile <- function(x, dates.base, qtiles, bootstrap.range, include.mask=NULL, n=5, get.bootstrap.data=FALSE, min.fraction.present=0.001) {
   inset <- get.bootstrap.set(dates.base, bootstrap.range, n)
   dpy <- ifelse(is.null(attr(dates.base, "dpy")), 365, attr(dates.base, "dpy"))
   nyears <- floor(sum(inset) / dpy)
   
   if(!is.null(include.mask))
     x[include.mask] <- NA
-
+  
   bs.data <- x[inset]
-
+  
   qdat <- NULL
   if(get.bootstrap.data) {
     d <- .Call("running_quantile_windowed_bootstrap", bs.data, n, qtiles, dpy, min.fraction.present, PACKAGE='climdex.pcic')
@@ -281,7 +281,7 @@ get.num.days.in.range <- function(x, date.range) {
 
 
 ## Check that arguments to climdexInput.raw et al are complete enough and valid enough.
-check.basic.argument.validity <- function(tmax, tmin, prec, tmax.dates, tmin.dates, prec.dates, base.range=c(1961, 1990), n=5, tavg=NULL, tavg.dates=NULL) {
+check.basic.argument.validity <- function(tmax, tmin, prec, tmax.dates, tmin.dates, prec.dates, base.range=c(1991, 2020), n=5, tavg=NULL, tavg.dates=NULL) {
   check.var <- function(var, var.dates, var.name) {
     if(is.null(var) != is.null(var.dates))
       stop(paste("If passing in", var, ", must pass in", var, "dates too.."))
@@ -292,18 +292,18 @@ check.basic.argument.validity <- function(tmax, tmin, prec, tmax.dates, tmin.dat
     if(!is.null(var) && !is.numeric(var))
       stop(paste(var.name, "must be of type numeric."))
   }
-    
+  
   check.var(tmax, tmax.dates, "tmax")
   check.var(tmin, tmin.dates, "tmin")
   check.var(tavg, tavg.dates, "tavg")
   check.var(prec, prec.dates, "prec")
-
+  
   if(all(c(is.null(tmax), is.null(tmin), is.null(prec), is.null(tavg))))
     stop("Must supply at least one variable to calculate indices upon.")
-
+  
   if(!(length(base.range) == 2 && is.numeric(base.range)))
     stop("Invalid base date range; expecting vector of 2 numeric years.")
-
+  
   if(!is.numeric(n) || length(n) != 1)
     stop("n must be numeric and of length 1.")
   
@@ -321,18 +321,18 @@ check.quantile.validity <- function(quantiles, present.vars, days.in.base) {
   
   if(!all(present.vars %in% names(quantiles)))
     stop("Quantiles must be present for all variables provided.\n")
-
+  
   if(!all(sapply(quantiles[names(quantiles) %in% intersect(present.vars, c("tmax", "tmin"))], function(x) { "outbase" %in% names(x) && all(c("q10", "q90") %in% names(x$outbase)) })))
     stop("Temperature out-of-base quantiles must contain 10th and 90th percentiles.\n")
-
+  
   if(any(days.in.base > 0) && !all(sapply(quantiles[names(quantiles) %in% intersect(intersect(present.vars, c("tmax", "tmin")), names(days.in.base)[days.in.base > 0])], function(x) { "inbase" %in% names(x) && all(c("q10", "q90") %in% names(x$inbase)) })))
     stop("Temperature in-base quantiles must contain 10th and 90th percentiles.\n")
-
+  
   if("prec" %in% names(quantiles) && !all(c("q95", "q99") %in% names(quantiles$prec)))
     stop("Precipitation quantiles must contain 95th and 99th percentiles.\n")
 }
 
-get.temp.var.quantiles <- function(filled.data, date.series, bs.date.series, qtiles, bs.date.range, n, in.base=FALSE, min.base.data.fraction.present=0.1) {
+get.temp.var.quantiles <- function(filled.data, date.series, bs.date.series, qtiles, bs.date.range, n, in.base=FALSE, min.base.data.fraction.present=0.001) {
   base.data <- create.filled.series(filled.data, date.series, bs.date.series)
   if(in.base)
     return(list(outbase=zhang.running.qtile(base.data, dates.base=bs.date.series, qtiles=qtiles, bootstrap.range=bs.date.range, n=n, min.fraction.present=min.base.data.fraction.present),
@@ -398,7 +398,7 @@ get.prec.var.quantiles <- function(filled.prec, date.series, bs.date.range, qtil
 #' tmax.dates, tmin.dates, prec.dates, base.range=c(1971, 2000))
 #'
 #' @export
-get.outofbase.quantiles <- function(tmax=NULL, tmin=NULL, prec=NULL, tmax.dates=NULL, tmin.dates=NULL, prec.dates=NULL, base.range=c(1961, 1990), n=5, temp.qtiles=c(0.10, 0.90), prec.qtiles=c(0.95, 0.99), min.base.data.fraction.present=0.1) {
+get.outofbase.quantiles <- function(tmax=NULL, tmin=NULL, prec=NULL, tmax.dates=NULL, tmin.dates=NULL, prec.dates=NULL, base.range=c(1991, 2020), n=5, temp.qtiles=c(0.10, 0.90), prec.qtiles=c(0.95, 0.99), min.base.data.fraction.present=0.001) {
   days.threshold <- 359
   check.basic.argument.validity(tmax, tmin, prec, tmax.dates, tmin.dates, prec.dates, base.range, n)
   
@@ -406,28 +406,28 @@ get.outofbase.quantiles <- function(tmax=NULL, tmin=NULL, prec=NULL, tmax.dates=
   all.dates <- do.call(c, d.list[!sapply(d.list, is.null)])
   last.day.of.year <- get.last.monthday.of.year(all.dates)
   cal <- attr(all.dates, "cal")
-
+  
   bs.date.range <- as.PCICt(paste(base.range, c("01-01", last.day.of.year), sep="-"), cal=cal)
   new.date.range <- as.PCICt(paste(as.numeric(format(range(all.dates), "%Y", tz="GMT")), c("01-01", last.day.of.year), sep="-"), cal=cal)
   date.series <- seq(new.date.range[1], new.date.range[2], by="day")
   bs.date.series <- seq(bs.date.range[1], bs.date.range[2], by="day")
   
   quantiles <- list()
-
+  
   if(!is.null(tmax)) {
     if(get.num.days.in.range(tmax.dates, bs.date.range) <= days.threshold)
       stop("There is less than a year of tmax data within the base period. Consider revising your base range and/or check your input data.")
     filled.tmax <- create.filled.series(tmax, trunc(tmax.dates, "days"), date.series)
     quantiles$tmax <- get.temp.var.quantiles(filled.tmax, date.series, bs.date.series, temp.qtiles, bs.date.range, n)
   } 
-
+  
   if(!is.null(tmin)) {
     if(get.num.days.in.range(tmin.dates, bs.date.range) <= days.threshold)
       stop("There is less than a year of tmin data within the base period. Consider revising your base range and/or check your input data.")
     filled.tmin <- create.filled.series(tmin, trunc(tmin.dates, "days"), date.series)
     quantiles$tmin <- get.temp.var.quantiles(filled.tmin, date.series, bs.date.series, temp.qtiles, bs.date.range, n)
   }
-
+  
   if(!is.null(prec)) {
     if(get.num.days.in.range(prec.dates, bs.date.range) <= days.threshold)
       stop("There is less than a year of prec data within the base period. Consider revising your base range and/or check your input data.")
@@ -539,11 +539,11 @@ get.outofbase.quantiles <- function(tmax=NULL, tmin=NULL, prec=NULL, tmax.dates=
 #'
 #' @export
 climdexInput.raw <- function(tmax=NULL, tmin=NULL, prec=NULL, tmax.dates=NULL, tmin.dates=NULL, prec.dates=NULL,
-                             base.range=c(1961, 1990), n=5, northern.hemisphere=TRUE,
-                             tavg=NULL, tavg.dates=NULL, quantiles=NULL, temp.qtiles=c(0.10, 0.90), prec.qtiles=c(0.95, 0.99), max.missing.days=c(annual=15, monthly=3), min.base.data.fraction.present=0.1) {
+                             base.range=c(1991, 2020), n=5, northern.hemisphere=TRUE,
+                             tavg=NULL, tavg.dates=NULL, quantiles=NULL, temp.qtiles=c(0.10, 0.90), prec.qtiles=c(0.95, 0.99), max.missing.days=c(annual=105, monthly=25), min.base.data.fraction.present=0.001) {
   ## Make sure all of these arguments are valid...
   check.basic.argument.validity(tmax, tmin, prec, tmax.dates, tmin.dates, prec.dates, base.range, n, tavg, tavg.dates)
-
+  
   stopifnot(length(max.missing.days) == 2 && all(c("annual", "monthly") %in% names(max.missing.days)))
   stopifnot(is.numeric(min.base.data.fraction.present) && length(min.base.data.fraction.present) == 1)
   
@@ -551,7 +551,7 @@ climdexInput.raw <- function(tmax=NULL, tmin=NULL, prec=NULL, tmax.dates=NULL, t
   all.dates <- do.call(c, d.list[!sapply(d.list, is.null)])
   last.day.of.year <- get.last.monthday.of.year(all.dates)
   cal <- attr(all.dates, "cal")
-
+  
   ## Convert base range (in years) to PCICt
   bs.date.range <- as.PCICt(paste(base.range, c("01-01", last.day.of.year), sep="-"), cal=cal)
   bs.date.series <- seq(bs.date.range[1], bs.date.range[2], by="day")
@@ -563,26 +563,26 @@ climdexInput.raw <- function(tmax=NULL, tmin=NULL, prec=NULL, tmax.dates=NULL, t
   
   ## Factors for dividing data up
   date.factors <- list(annual=factor(format(date.series, format="%Y", tz="GMT")), monthly=factor(format(date.series, format="%Y-%m", tz="GMT")))
-
+  
   ## Filled data...
   var.list <- c("tmax", "tmin", "prec", "tavg")
   present.var.list <- var.list[sapply(var.list, function(x) !is.null(get(x)))]
   filled.list <- sapply(present.var.list, function(x) { return(create.filled.series(get(x), trunc(get(paste(x, "dates", sep="."))), date.series)) }, simplify=FALSE)
   if(is.null(tavg) && !is.null(tmin) && !is.null(tmax))
     filled.list$tavg <- (filled.list$tmax + filled.list$tmin) / 2
-
+  
   ## Establish some truth values for later use in logic...
   days.threshold <- 359
   present.dates <- sapply(present.var.list, function(x) get(paste(x, "dates", sep=".")))
   quantile.dates <- list(tmax=tmax.dates, tmin=tmin.dates, prec=prec.dates)
   days.in.base <- sapply(quantile.dates, get.num.days.in.range, bs.date.range)
-
+  
   ## Check that provided quantiles, if any, are valid
   check.quantile.validity(quantiles, present.var.list, days.in.base)
-
+  
   data.in.base.period <- any(days.in.base != 0)
   have.quantiles <- all(present.var.list %in% names(quantiles))
-
+  
   ## NA masks
   namasks <- list(annual=lapply(filled.list, get.na.mask, date.factors$annual, max.missing.days['annual']), monthly=lapply(filled.list, get.na.mask, date.factors$monthly, max.missing.days['monthly']))
   namasks$annual <- lapply(names(namasks$annual), function(v) { d <- namasks$annual[[v]] * as.numeric(tapply(namasks$monthly[[v]], rep(seq_along(namasks$annual[[v]]), each=12), prod)); dimnames(d) <- dim(d) <- NULL; d })
@@ -591,7 +591,7 @@ climdexInput.raw <- function(tmax=NULL, tmin=NULL, prec=NULL, tmax.dates=NULL, t
   ## Pad data passed as base if we're missing endpoints...
   if(!have.quantiles) {
     quantiles <- new.env(parent=emptyenv())
-
+    
     if(days.in.base['tmax'] > days.threshold)
       delayedAssign("tmax", get.temp.var.quantiles(filled.list$tmax, date.series, bs.date.series, temp.qtiles, bs.date.range, n, TRUE, min.base.data.fraction.present), assign.env=quantiles)
     if(days.in.base['tmin'] > days.threshold)
@@ -673,9 +673,9 @@ climdexInput.raw <- function(tmax=NULL, tmin=NULL, prec=NULL, tmax.dates=NULL, t
 #'
 #' @export
 climdexInput.csv <- function(tmax.file=NULL, tmin.file=NULL, prec.file=NULL,
-                             data.columns=list(tmin="tmin", tmax="tmax", prec="prec"), base.range=c(1961, 1990),
+                             data.columns=list(tmin="tmin", tmax="tmax", prec="prec"), base.range=c(1991, 2020),
                              na.strings=NULL, cal="gregorian", date.types=NULL, n=5, northern.hemisphere=TRUE,
-                             tavg.file=NULL, quantiles=NULL, temp.qtiles=c(0.10, 0.90), prec.qtiles=c(0.95, 0.99), max.missing.days=c(annual=15, monthly=3), min.base.data.fraction.present=0.1) {
+                             tavg.file=NULL, quantiles=NULL, temp.qtiles=c(0.10, 0.90), prec.qtiles=c(0.95, 0.99), max.missing.days=c(annual=105, monthly=25), min.base.data.fraction.present=0.001) {
   get.and.check.data <- function(fn, datacol) {
     if(!is.null(fn)) {
       dat <- read.csv(fn, na.strings=na.strings)
@@ -691,7 +691,7 @@ climdexInput.csv <- function(tmax.file=NULL, tmin.file=NULL, prec.file=NULL,
   else
     if(any(!sapply(date.types, function(x) { return(sum(c("fields", "format") %in% names(x)) == 2 && is.character(x$fields) && is.character(x$format)) } )))
       stop("Invalid date.types specified. See ?climdexInput.csv .")
-
+  
   tmin <- get.and.check.data(tmin.file, data.columns$tmin)
   tmax <- get.and.check.data(tmax.file, data.columns$tmax)
   tavg <- get.and.check.data(tavg.file, data.columns$tavg)
@@ -829,7 +829,7 @@ climdex.gsl <- function(ci, gsl.mode=c("GSL", "GSL_first", "GSL_max", "GSL_sum")
     dates.POSIXlt <- as.POSIXlt(ci@dates)
     years <- dates.POSIXlt$year + 1900
     months <- dates.POSIXlt$mon + 1
-
+    
     valid.years <- range(years)
     years.gsl <- years - floor((12 - months) / 6)
     
@@ -1185,7 +1185,7 @@ climdex.r20mm <- function(ci) { stopifnot(!is.null(ci@data$prec)); return(number
 climdex.rnnmm <- function(ci, threshold=1) {
   stopifnot(!is.null(ci@data$prec));
   if(!is.numeric(threshold) || length(threshold) != 1) stop("Please specify a single numeric threshold value.");
-
+  
   return(number.days.op.threshold(ci@data$prec, ci@date.factors$annual, threshold, ">=") * ci@namasks$annual$prec)
 }
 
@@ -1355,10 +1355,10 @@ get.series.lengths.at.ends <- function(x, na.value=FALSE) {
   n <- length(x)
   if(n == 1)
     return(as.numeric(x))
-
+  
   res <- rep(0, n)
   x[is.na(x)] <- na.value
-
+  
   ## Compare series to lag-1 and lag+1 series; false added to trigger state transition from TRUE at ends of series
   start <- which(x & !(c(FALSE, x[1:(n - 1)])))
   end <- which(x & !(c(x[2:n], FALSE)))
@@ -1487,7 +1487,7 @@ growing.season.length <- function(daily.mean.temp, date.factor, dates, northern.
       
       ## Growing season actually ends the day -before- the sequence of sketchy days
       gs.end <- which(select.blocks.gt.length(temp.data[ts.mid:ts.len] < t.thresh, min.length - 1)) - 1
-
+      
       ## If no growing season start, 0 length; if no end, ends at end of year; otherwise, end - start + 1
       return(ifelse(length(gs.begin) == 0, 0, ifelse(length(gs.end) == 0, ts.len - gs.begin[1] + 1, gs.end[1] - gs.begin[1] + ts.mid)))
     }))
@@ -1560,19 +1560,19 @@ percent.days.op.threshold <- function(temp, dates, jdays, date.factor, threshold
   if(sum(inset) > 0 && length(dates) >= 360 * 2) {
     jdays.base <- jdays[inset]
     years.base <- get.years(dates[inset])
-
+    
     ## Get number of base years, subset temp data to base period only.
     temp.base <- temp[inset]
     years.base.range <- range(years.base)
     byrs <- (years.base.range[2] - years.base.range[1] + 1)
-
+    
     ## Linearize thresholds, then compare them to the temperatures
     bdim <- dim(base.thresholds)
     dim(base.thresholds) <- c(bdim[1] * bdim[2], bdim[3])
     yday.byr.indices <- jdays.base + (years.base - get.years(base.range)[1]) * bdim[1]
     f.result <- f(rep(temp.base, byrs - 1), base.thresholds[yday.byr.indices,])
     dim(f.result) <- c(length(yday.byr.indices), bdim[3])
-
+    
     ## Chop up data along the 2nd dim into a list; sum elements of the list
     dat[inset] <- rowSums(f.result, na.rm=TRUE) / (byrs - 1)
   }
@@ -1635,7 +1635,7 @@ threshold.exceedance.duration.index <- function(daily.temp, date.factor, jdays, 
             min.length > 0)
   f <- match.fun(op)
   na.mask <- get.na.mask(is.na(daily.temp + thresholds[jdays]), date.factor, max.missing.days)
-
+  
   if(spells.can.span.years) {
     periods <- select.blocks.gt.length(f(daily.temp, thresholds[jdays]), min.length - 1)
     return(tapply.fast(periods, date.factor, sum) * na.mask)
@@ -1703,8 +1703,8 @@ nday.consec.prec.max <- function(daily.prec, date.factor, ndays, center.mean.on.
   prec.runsum <- running.mean(daily.prec, ndays)
   prec.runsum[is.na(prec.runsum)] <- 0
   if(center.mean.on.last.day) {
-      k2 = ndays %/% 2
-      prec.runsum <- c(rep(0, k2), prec.runsum[1:(length(prec.runsum) - k2)])
+    k2 = ndays %/% 2
+    prec.runsum <- c(rep(0, k2), prec.runsum[1:(length(prec.runsum) - k2)])
   }
   return(tapply.fast(prec.runsum, date.factor, max) * ndays)
 }
@@ -1773,7 +1773,7 @@ simple.precipitation.intensity.index <- function(daily.prec, date.factor) {
 #' @export
 spell.length.max <- function(daily.prec, date.factor, threshold, op, spells.can.span.years) {
   bools <- match.fun(op)(daily.prec, threshold)
-
+  
   if(spells.can.span.years) {
     all.true <- tapply.fast(bools, date.factor, all)
     max.spell <- tapply.fast(get.series.lengths.at.ends(bools), date.factor, max)
@@ -1846,13 +1846,13 @@ running.quantile <- function(data, n, q, dpy, min.fraction) {
 #' @export
 select.blocks.gt.length <- function(d, n, na.value=FALSE) {
   stopifnot(is.logical(d), is.numeric(n))
-
+  
   if(n < 1)
     return(d)
-
+  
   if(n >= length(d))
     return(rep(FALSE, length(d)))
-
+  
   d[is.na(d)] <- na.value
   
   d2 <- Reduce(function(x, y) { return(c(rep(FALSE, y), d[1:(length(d) - y)]) & x) }, 1:n, d)
@@ -1913,9 +1913,9 @@ running.mean <- function(vec, bin){
     bin = len
   }
   left.bin = bin%/%2
-
+  
   means = double(len)
-
+  
   right.bin = bin - left.bin - 1
   means = c( sum(vec[1:bin]), diff(vec,bin) ) # find the first sum and the differences from it
   means = cumsum(means)/bin                  # apply precomputed differences
